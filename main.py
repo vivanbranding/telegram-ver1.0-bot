@@ -31,28 +31,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     response_text = None
 
-    # لیست مدل‌های پشتیبانی شده
-    models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
+    # لیست مدل‌های به روز جهت تست
+    models_to_try = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']
 
-    for model_id in models:
+    for model_name in models_to_try:
         try:
             chat = client.chats.create(
-                model=model_id,
+                model=model_name,
                 config={'system_instruction': SYSTEM_INSTRUCTION}
             )
             res = chat.send_message(user_text)
             if res and res.text:
                 response_text = res.text
-                logging.info(f"Success with model: {model_id}")
+                logging.info(f"Successfully generated response using model: {model_name}")
                 break
         except Exception as e:
-            logging.warning(f"Model {model_id} error: {e}")
+            logging.warning(f"Model {model_name} failed: {e}")
             continue
 
     if response_text:
         await update.message.reply_text(response_text)
     else:
-        await update.message.reply_text("خطا در ارتباط با گوگل. لطفاً کلید API جدید را برررسی کنید.")
+        await update.message.reply_text("متأسفانه مشکلی در ارتباط با سرور گوگل پیش آمده است. لطفاً چند لحظه بعد مجدداً پیام دهید.")
 
 if __name__ == '__main__':
     proxy_url = "http://proxy.server:3128"
