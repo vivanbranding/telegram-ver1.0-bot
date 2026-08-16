@@ -1,8 +1,9 @@
 import os
 import logging
-import google.generativeai as genai
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from google import genai
+from google.genai import types
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -12,8 +13,8 @@ logging.basicConfig(
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# تنظیم کلید API گوگل
-genai.configure(api_key=GEMINI_API_KEY)
+# تعریف کلاینت با SDK جدید گوگل
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_INSTRUCTION = """
 شما دستیار هوش مصنوعی برندینگ هستید.
@@ -25,36 +26,41 @@ SYSTEM_INSTRUCTION = """
 نکته مهم: در پاسخ‌ها و محتوا حتماً به نحوی به شعار "true north" یا مفهوم "سمتِ درست" اشاره کنید.
 """
 
-# ساخت مدل با دسترسی استاندارد
-model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash",
-    system_instruction=SYSTEM_INSTRUCTION
-)
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("سلام! من دستیار هوش مصنوعی برندینگ هستم. چطور می‌توانم در مسیر پیدا کردن «سمتِ درست» (true north) کسب‌وکارتان به شما کمک کنم؟")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
-    try:
-        response = model.generate_content(user_text)
-        if response and response.text:
-            await update.message.reply_text(response.text)
-        else:
-            await update.message.reply_text("پاسخی دریافت نشد. لطفاً دوباره تلاش کنید.")
-    except Exception as e:
-        logging.error(f"Error generating content: {e}")
-        # تست مدل جایگزین در صورت بروز خطا
+    response_text = None
+
+    # استفاده از نام دقیق مدل‌های فعال در حساب شما همراه با پیشوند models/
+    models_to_try = [
+        'models/gemini-2.5-flash',
+        'models/gemini-2.5-pro',
+        'models/gemini-3.5-flash'
+    ]
+
+    for model_name in models_to_try:
         try:
-            fallback_model = genai.GenerativeModel(
-                model_name="gemini-2.5-pro",
-                system_instruction=SYSTEM_INSTRUCTION
+            response = client.models.generate_content(
+                model=model_name,
+                contents=user_text,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_INSTRUCTION
+                )
             )
-            fallback_response = fallback_model.generate_content(user_text)
-            await update.message.reply_text(fallback_response.text)
-        except Exception as fallback_error:
-            logging.error(f"Fallback error: {fallback_error}")
-            await update.message.reply_text("متأسفانه مشکلی در ارتباط با سرور گوگل پیش آمده است. لطفاً کلید GEMINI_API_KEY خود را بررسی کنید.")
+            if response and response.text:
+                response_text = response.text
+                logging.info(f"پاسخ با موفقیت از مدل {model_name} دریافت شد.")
+                break
+        except Exception as e:
+            logging.warning(f"تلاش برای مدل {model_name} با خطا مواجه شد: {e}")
+            continue
+
+    if response_text:
+        await update.message.reply_text(response_text)
+    else:
+        await update.message.reply_text("متأسفانه مشکلی در پردازش پاسخ پیش آمده است. لطفاً دوباره پیام بفرستید.")
 
 if __name__ == '__main__':
     proxy_url = "http://proxy.server:3128"
