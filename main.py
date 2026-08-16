@@ -2,7 +2,7 @@ import os
 import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
-import google.generativeai as genai
+from google import genai
 
 # تنظیمات لاگ
 logging.basicConfig(
@@ -10,14 +10,12 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# دریافت کلیدها از متغیرهای محیطی
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# پیکربندی گوگل جمینای
-genai.configure(api_key=GEMINI_API_KEY)
+# ساخت کلاینت جدید گوگل
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-# تنظیمات هوش مصنوعی و دستورالعمل‌های سیستم (System Instruction)
 SYSTEM_INSTRUCTION = """
 شما دستیار هوش مصنوعی برندینگ هستید.
 شعار برند: "true north" (سمتِ درست).
@@ -28,20 +26,17 @@ SYSTEM_INSTRUCTION = """
 نکته مهم: در پاسخ‌ها و محتوا حتماً به نحوی به شعار "true north" یا مفهوم "سمتِ درست" اشاره کنید.
 """
 
-model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash",
-    system_instruction=SYSTEM_INSTRUCTION
-)
-
-# دستور start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("سلام! من دستیار هوش مصنوعی برندینگ هستم. چطور می‌توانم در مسیر پیدا کردن «سمتِ درست» (true north) کسب‌وکارتان به شما کمک کنم؟")
 
-# پاسخ به پیام‌های کاربر
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     try:
-        response = model.generate_content(user_text)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=user_text,
+            config={'system_instruction': SYSTEM_INSTRUCTION}
+        )
         await update.message.reply_text(response.text)
     except Exception as e:
         logging.error(f"Error: {e}")
