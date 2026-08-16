@@ -1,10 +1,11 @@
 import os
 import logging
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from google import genai
 from google.genai import types
 
+# تنظیمات لاگ
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -32,7 +33,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     try:
         response = client.models.generate_content(
-            model='models/gemini-3.5-flash',
+            model='gemini-3.5-flash',
             contents=user_text,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION
@@ -47,13 +48,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("متأسفانه مشکلی در ارتباط با سرور پیش آمده است.")
 
 if __name__ == '__main__':
-    proxy_url = "http://proxy.server:3128"
-    
+    # ساخت اپلیکیشن استاندارد بدون نیاز به ست کردن دستی پروکسی
     app = (
         ApplicationBuilder()
         .token(TELEGRAM_BOT_TOKEN)
-        .proxy(proxy_url)
-        .get_updates_proxy(proxy_url)
         .build()
     )
     
@@ -61,4 +59,4 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     
     print("ربات فعال شد...")
-    app.run_polling()
+    app.run_polling(poll_interval=2.0)
