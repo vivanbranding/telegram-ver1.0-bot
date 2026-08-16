@@ -1,8 +1,8 @@
 import os
 import logging
+import google.generativeai as genai
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
-from google import genai
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -12,7 +12,8 @@ logging.basicConfig(
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+# تنظیم کلید API گوگل
+genai.configure(api_key=GEMINI_API_KEY)
 
 SYSTEM_INSTRUCTION = """
 شما دستیار هوش مصنوعی برندینگ هستید.
@@ -24,35 +25,36 @@ SYSTEM_INSTRUCTION = """
 نکته مهم: در پاسخ‌ها و محتوا حتماً به نحوی به شعار "true north" یا مفهوم "سمتِ درست" اشاره کنید.
 """
 
+# ساخت مدل با دسترسی استاندارد
+model = genai.GenerativeModel(
+    model_name="gemini-2.5-flash",
+    system_instruction=SYSTEM_INSTRUCTION
+)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("سلام! من دستیار هوش مصنوعی برندینگ هستم. چطور می‌توانم در مسیر پیدا کردن «سمتِ درست» (true north) کسب‌وکارتان به شما کمک کنم؟")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
-    response_text = None
-
-    # لیست مدل‌های به روز جهت تست
-    models_to_try = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']
-
-    for model_name in models_to_try:
+    try:
+        response = model.generate_content(user_text)
+        if response and response.text:
+            await update.message.reply_text(response.text)
+        else:
+            await update.message.reply_text("پاسخی دریافت نشد. لطفاً دوباره تلاش کنید.")
+    except Exception as e:
+        logging.error(f"Error generating content: {e}")
+        # تست مدل جایگزین در صورت بروز خطا
         try:
-            chat = client.chats.create(
-                model=model_name,
-                config={'system_instruction': SYSTEM_INSTRUCTION}
+            fallback_model = genai.GenerativeModel(
+                model_name="gemini-2.5-pro",
+                system_instruction=SYSTEM_INSTRUCTION
             )
-            res = chat.send_message(user_text)
-            if res and res.text:
-                response_text = res.text
-                logging.info(f"Successfully generated response using model: {model_name}")
-                break
-        except Exception as e:
-            logging.warning(f"Model {model_name} failed: {e}")
-            continue
-
-    if response_text:
-        await update.message.reply_text(response_text)
-    else:
-        await update.message.reply_text("متأسفانه مشکلی در ارتباط با سرور گوگل پیش آمده است. لطفاً چند لحظه بعد مجدداً پیام دهید.")
+            fallback_response = fallback_model.generate_content(user_text)
+            await update.message.reply_text(fallback_response.text)
+        except Exception as fallback_error:
+            logging.error(f"Fallback error: {fallback_error}")
+            await update.message.reply_text("متأسفانه مشکلی در ارتباط با سرور گوگل پیش آمده است. لطفاً کلید GEMINI_API_KEY خود را بررسی کنید.")
 
 if __name__ == '__main__':
     proxy_url = "http://proxy.server:3128"
