@@ -13,7 +13,7 @@ logging.basicConfig(
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# ساخت کلاینت جدید گوگل
+# ساخت کلاینت گوگل
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_INSTRUCTION = """
@@ -26,24 +26,41 @@ SYSTEM_INSTRUCTION = """
 نکته مهم: در پاسخ‌ها و محتوا حتماً به نحوی به شعار "true north" یا مفهوم "سمتِ درست" اشاره کنید.
 """
 
+# لیست مدل‌های پشتیبانی شده بر اساس اولویت
+CANDIDATE_MODELS = [
+    'gemini-1.5-flash',
+    'gemini-1.5-pro',
+    'gemini-2.0-flash-exp'
+]
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("سلام! من دستیار هوش مصنوعی برندینگ هستم. چطور می‌توانم در مسیر پیدا کردن «سمتِ درست» (true north) کسب‌وکارتان به شما کمک کنم؟")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
-    try:
-        response = client.models.generate_content(
-    model='gemini-1.5-pro',
-    contents=user_text,
-    config={'system_instruction': SYSTEM_INSTRUCTION}
-)
-        await update.message.reply_text(response.text)
-    except Exception as e:
-        logging.error(f"Error: {e}")
+    response_text = None
+
+    # تست مدل‌ها به ترتیب برای دریافت پاسخ
+    for model_name in CANDIDATE_MODELS:
+        try:
+            res = client.models.generate_content(
+                model=model_name,
+                contents=user_text,
+                config={'system_instruction': SYSTEM_INSTRUCTION}
+            )
+            if res and res.text:
+                response_text = res.text
+                break
+        except Exception as e:
+            logging.warning(f"Failed with model {model_name}: {e}")
+            continue
+
+    if response_text:
+        await update.message.reply_text(response_text)
+    else:
         await update.message.reply_text("متأسفانه مشکلی در ارتباط با هوش مصنوعی پیش آمده است. لطفاً دوباره تلاش کنید.")
 
 if __name__ == '__main__':
-    # استفاده از پراکسی پیش‌فرض PythonAnywhere برای رفع خطای شبکه
     proxy_url = "http://proxy.server:3128"
     
     app = (
