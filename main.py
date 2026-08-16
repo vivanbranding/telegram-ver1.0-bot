@@ -33,17 +33,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     try:
         response = client.models.generate_content(
-    model='gemini-2.0-flash',
-    contents=user_text,
-    config={'system_instruction': SYSTEM_INSTRUCTION}
-)
+            model='gemini-2.0-flash',
+            contents=user_text,
+            config={'system_instruction': SYSTEM_INSTRUCTION}
+        )
         await update.message.reply_text(response.text)
     except Exception as e:
         logging.error(f"Error: {e}")
         await update.message.reply_text("متأسفانه مشکلی در ارتباط با هوش مصنوعی پیش آمده است. لطفاً دوباره تلاش کنید.")
 
 if __name__ == '__main__':
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    # استفاده از پراکسی پیش‌فرض PythonAnywhere برای رفع خطای شبکه
+    proxy_url = "http://proxy.server:3128"
+    
+    app = (
+        ApplicationBuilder()
+        .token(TELEGRAM_BOT_TOKEN)
+        .proxy(proxy_url)
+        .get_updates_proxy(proxy_url)
+        .build()
+    )
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
